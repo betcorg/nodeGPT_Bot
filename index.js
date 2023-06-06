@@ -5,10 +5,11 @@ require('dotenv').config();
 
 // Configuraciones de OpenAI
 const apiKey = process.env.OPENAI_API_KEY
-const openAIConfig = new Configuration({apiKey});
+const openAIConfig = new Configuration({ apiKey });
 const openai = new OpenAIApi(openAIConfig);
 const model = process.env.MODEL
 const maxTokens = parseInt(process.env.MAX_TOKENS);
+const seller = require("./role");
 
 // Configuraciones del cliente de Whatsapp
 const whatsappClient = new Client({
@@ -20,14 +21,23 @@ function genQRCode(qr) {
     qrcode.generate(qr, { small: true });
 };
 
+// Inicializa el cliente de Whatsapp
+function whatsappInit() {
+    whatsappClient.on("qr", genQRCode);
+    whatsappClient.on("ready", () => {
+        console.log("Cliente listo!");
+    });
+    whatsappClient.initialize();
+};
 
-// Obtiene a respuesta de OpenAI
+// Solicita y retorna la respuesta de OpenAI
 async function getOpenAIResponse(prompt) {
     const params = {
         model,
-        messages: [{
-            "role": "user", "content": prompt
-        }],
+        messages: [
+            seller,
+            { "role": "user", "content": prompt },
+        ],
         max_tokens: maxTokens,
     };
     const response = await openai.createChatCompletion(params);
@@ -37,8 +47,8 @@ async function getOpenAIResponse(prompt) {
     return content;
 };
 
-// Envía mensajes de respuesta desde el cliente de Whatsapp
-async function sendMessage(from, content){
+// Envía el mensaje de respuesta desde el cliente de Whatsapp
+async function sendMessage(from, content) {
     await whatsappClient.sendMessage(from, content);
 };
 
@@ -52,18 +62,9 @@ async function handleIncomingMsg(msg) {
     await sendMessage(msg.from, response);
 };
 
-// Inicializa el cliente de Whatsapp
-function whatsappInit() {
-    whatsappClient.on("qr", genQRCode);
-    whatsappClient.on("ready", () => {
-      console.log("Cliente listo!");
-    });
-    whatsappClient.initialize();
-};
-
 // Inicializa el bot
 function startBot() {
     whatsappInit();
-    whatsappClient.on("message", handleIncomingMsg)
+    whatsappClient.on("message", handleIncomingMsg);
 };
 startBot();
