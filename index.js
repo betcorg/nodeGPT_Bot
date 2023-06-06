@@ -1,73 +1,69 @@
 const { Configuration, OpenAIApi } = require("openai");
-const configuration = new Configuration({ apiKey: process.env.OPENAI_API_KEY });
-const openai = new OpenAIApi(configuration);
-const model = "gpt-3.5-turbo";
-const temp = 0;
-const max_tokens = 30;
-const qrcode = require("qrcode-terminal");
 const { Client, LocalAuth } = require("whatsapp-web.js");
-const client = new Client({
+const qrcode = require("qrcode-terminal");
+require('dotenv').config();
+
+// Configuraciones de OpenAI
+const apiKey = process.env.OPENAI_API_KEY
+const openAIConfig = new Configuration({apiKey});
+const openai = new OpenAIApi(openAIConfig);
+const model = process.env.MODEL
+const maxTokens = parseInt(process.env.MAX_TOKENS);
+
+// Configuraciones del cliente de Whatsapp
+const whatsappClient = new Client({
     authStrategy: new LocalAuth(),
 });
 
-
-const waClient = function () {
-
-    client.on('qr', (qr) => {
-        qrcode.generate(qr, { small: true });
-    });
-    client.on('ready', () => {
-        console.log('Client is ready!');
-    });
-    client.initialize();
+// Genera código QR de autenticación
+function genQRCode(qr) {
+    qrcode.generate(qr, { small: true });
 };
-waClient();
 
 
-client.on("message", (msg) => {
-    const prompt = msg.body;
-
-    async function listener() {
-        console.log(prompt);
-        // getResponse(prompt);
-        const response = await getResponse(prompt);
-        client.sendMessage(msg.from, response);
-    };
-    listener();
-});
-
-
-
-async function getResponse(prompt) {
+// Obtiene a respuesta de OpenAI
+async function getOpenAIResponse(prompt) {
     const params = {
-        model: model,
-        messages: [
-            {
-                role: "user",
-                content: prompt,
-            },
-        ],
-        temperature: temp,
-        max_tokens: max_tokens,
+        model,
+        messages: [{
+            "role": "user", "content": prompt
+        }],
+        max_tokens: maxTokens,
     };
-
     const response = await openai.createChatCompletion(params);
     const content = response.data.choices[0].message.content;
-    // console.log(content);
+    console.log(content);
+    console.log(`Se usaron ${response.data.usage.total_tokens} tokens`);
     return content;
 };
 
+// Envía mensajes de respuesta desde el cliente de Whatsapp
+async function sendMessage(from, content){
+    await whatsappClient.sendMessage(from, content);
+};
 
+// Maneja los mensajes entrantes y envía la respuesta
+async function handleIncomingMsg(msg) {
+    const prompt = msg.body;
 
+    console.log(prompt);
 
+    const response = await getOpenAIResponse(prompt);
+    await sendMessage(msg.from, response);
+};
 
+// Inicializa el cliente de Whatsapp
+function whatsappInit() {
+    whatsappClient.on("qr", genQRCode);
+    whatsappClient.on("ready", () => {
+      console.log("Cliente listo!");
+    });
+    whatsappClient.initialize();
+};
 
-
-
-
-
-
-
-
-
-
+// Inicializa el bot
+function startBot() {
+    whatsappInit();
+    whatsappClient.on("message", handleIncomingMsg)
+};
+startBot();
