@@ -10,6 +10,9 @@ const openai = new OpenAIApi(openAIConfig);
 const model = process.env.MODEL
 const maxTokens = parseInt(process.env.MAX_TOKENS);
 const seller = require("./role");
+const messages = [
+    seller,
+];
 
 // Configuraciones del cliente de Whatsapp
 const whatsappClient = new Client({
@@ -31,18 +34,15 @@ function whatsappInit() {
 };
 
 // Solicita y retorna la respuesta de OpenAI
-async function getOpenAIResponse(prompt) {
+async function getOpenAIResponse(messages) {
     const params = {
         model,
-        messages: [
-            seller,
-            { "role": "user", "content": prompt },
-        ],
+        messages, 
         max_tokens: maxTokens,
     };
     const response = await openai.createChatCompletion(params);
-    const content = response.data.choices[0].message.content;
-    console.log(content);
+    const content = response.data.choices[0].message;
+    messages.push(content);
     console.log(`Se usaron ${response.data.usage.total_tokens} tokens`);
     return content;
 };
@@ -54,12 +54,11 @@ async function sendMessage(from, content) {
 
 // Maneja los mensajes entrantes y envía la respuesta
 async function handleIncomingMsg(msg) {
-    const prompt = msg.body;
-
-    console.log(prompt);
-
-    const response = await getOpenAIResponse(prompt);
-    await sendMessage(msg.from, response);
+    const prompt = {"role": "user", "content": msg.body}
+    messages.push(prompt);
+    console.log(messages);
+    const response = await getOpenAIResponse(messages);
+    await sendMessage(msg.from, response.content);
 };
 
 // Inicializa el bot
